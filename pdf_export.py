@@ -1,9 +1,10 @@
 from datetime import datetime
 from io import BytesIO
 
+import matplotlib
+matplotlib.use("Agg")  # Non-interactive backend for headless cloud servers
+import matplotlib.pyplot as plt
 import pandas as pd
-import plotly.express as px
-from plotly.io import to_image
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import letter
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
@@ -27,170 +28,143 @@ from analysis import (
     top_products,
 )
 
-CHART_COLORS = [
-    "#38bdf8",  # Sky Blue
-    "#818cf8",  # Indigo
-    "#34d399",  # Emerald
-    "#f472b6",  # Pink
-    "#fbbf24",  # Amber
-    "#a78bfa",  # Violet
-    "#2dd4bf",  # Teal
-    "#f87171",  # Red
-]
-
-CHART_LAYOUT = dict(
-    plot_bgcolor="#ffffff",
-    paper_bgcolor="#ffffff",
-    font=dict(color="#0f172a", family="Helvetica", size=11),
-    margin=dict(l=40, r=40, t=40, b=40),
-    colorway=CHART_COLORS,
-)
+# Brand Color Palette
+CHART_COLORS = ["#2563eb", "#38bdf8", "#10b981", "#f59e0b", "#8b5cf6", "#ec4899", "#06b6d4", "#ef4444"]
 
 
-def _apply_chart_export_style(fig, chart_type: str):
-    """Format figures for clean, high-resolution rendering in PDF."""
-    fig.update_layout(**CHART_LAYOUT)
+def _generate_sales_trend_image(trend_df: pd.DataFrame) -> bytes:
+    """Generate Sales Trend Area chart as high-res PNG bytes."""
+    fig, ax = plt.subplots(figsize=(8, 3.8), dpi=200)
+    fig.patch.set_facecolor("#ffffff")
+    ax.set_facecolor("#fafbfc")
 
-    if chart_type == "line":
-        fig.update_traces(
-            line=dict(color="#2563eb", width=3),
-            marker=dict(
-                color="#2563eb",
-                size=8,
-                line=dict(width=1, color="#ffffff"),
-            ),
-            fill="tozeroy",
-            fillcolor="rgba(37, 99, 235, 0.18)",
+    dates = pd.to_datetime(trend_df["order_date"])
+    sales = trend_df["sales"]
+
+    ax.plot(dates, sales, color="#2563eb", linewidth=2.5, marker="o", markersize=4, label="Revenue ($)")
+    ax.fill_between(dates, sales, color="#2563eb", alpha=0.15)
+
+    ax.set_title("Revenue & Sales Momentum Over Time", fontsize=12, fontweight="bold", color="#0f172a", pad=12)
+    ax.tick_params(axis="both", which="major", labelsize=9, colors="#334155")
+    ax.grid(True, linestyle="--", alpha=0.5, color="#cbd5e1")
+    ax.spines["top"].set_visible(False)
+    ax.spines["right"].set_visible(False)
+    ax.spines["left"].set_color("#cbd5e1")
+    ax.spines["bottom"].set_color("#cbd5e1")
+    fig.tight_layout()
+
+    buf = BytesIO()
+    plt.savefig(buf, format="png", bbox_inches="tight", dpi=200)
+    plt.close(fig)
+    buf.seek(0)
+    return buf.getvalue()
+
+
+def _generate_category_pie_image(category_df: pd.DataFrame) -> bytes:
+    """Generate Category Sales Distribution Donut / Pie Chart as high-res PNG bytes."""
+    fig, ax = plt.subplots(figsize=(8, 3.8), dpi=200)
+    fig.patch.set_facecolor("#ffffff")
+
+    labels = category_df["category"].tolist()
+    values = category_df["sales"].tolist()
+    palette = CHART_COLORS[: len(labels)]
+
+    wedges, texts, autotexts = ax.pie(
+        values,
+        labels=labels,
+        autopct="%1.1f%%",
+        startangle=140,
+        colors=palette,
+        pctdistance=0.75,
+        wedgeprops=dict(width=0.45, edgecolor="#ffffff", linewidth=2),
+    )
+
+    for text in texts:
+        text.set_color("#0f172a")
+        text.set_fontsize(9.5)
+        text.set_fontweight("bold")
+
+    for autotext in autotexts:
+        autotext.set_color("#ffffff")
+        autotext.set_fontsize(9)
+        autotext.set_fontweight("bold")
+
+    ax.set_title("Category Sales Distribution", fontsize=12, fontweight="bold", color="#0f172a", pad=12)
+    fig.tight_layout()
+
+    buf = BytesIO()
+    plt.savefig(buf, format="png", bbox_inches="tight", dpi=200)
+    plt.close(fig)
+    buf.seek(0)
+    return buf.getvalue()
+
+
+def _generate_region_bar_image(region_df: pd.DataFrame) -> bytes:
+    """Generate Regional Profitability Bar Chart as high-res PNG bytes."""
+    fig, ax = plt.subplots(figsize=(8, 3.8), dpi=200)
+    fig.patch.set_facecolor("#ffffff")
+    ax.set_facecolor("#fafbfc")
+
+    regions = region_df["region"].tolist()
+    profits = region_df["profit"].tolist()
+    palette = [CHART_COLORS[i % len(CHART_COLORS)] for i in range(len(regions))]
+
+    bars = ax.bar(regions, profits, color=palette, width=0.55, edgecolor="#ffffff", linewidth=1.2)
+    ax.set_title("Regional Profitability Breakdown", fontsize=12, fontweight="bold", color="#0f172a", pad=12)
+    ax.tick_params(axis="both", which="major", labelsize=9, colors="#334155")
+    ax.grid(axis="y", linestyle="--", alpha=0.5, color="#cbd5e1")
+    ax.spines["top"].set_visible(False)
+    ax.spines["right"].set_visible(False)
+    ax.spines["left"].set_color("#cbd5e1")
+    ax.spines["bottom"].set_color("#cbd5e1")
+
+    for bar in bars:
+        height = bar.get_height()
+        ax.annotate(
+            f"${height:,.0f}",
+            xy=(bar.get_x() + bar.get_width() / 2, height),
+            xytext=(0, 3),
+            textcoords="offset points",
+            ha="center",
+            va="bottom",
+            fontsize=8.5,
+            color="#0f172a",
+            fontweight="bold",
         )
-        fig.update_layout(
-            xaxis=dict(
-                rangeslider=dict(visible=False),
-                type="date",
-                gridcolor="#e2e8f0",
-                linecolor="#cbd5e1",
-            ),
-            yaxis=dict(gridcolor="#e2e8f0", linecolor="#cbd5e1"),
-            height=380,
-        )
 
-    elif chart_type == "pie":
-        fig.update_traces(
-            textposition="inside",
-            textinfo="percent+label",
-            marker=dict(line=dict(color="#ffffff", width=2)),
-            textfont=dict(size=11, color="#ffffff"),
-        )
-        fig.update_layout(
-            showlegend=True,
-            legend=dict(
-                orientation="h",
-                yanchor="bottom",
-                y=-0.15,
-                xanchor="center",
-                x=0.5,
-            ),
-            height=380,
-        )
-
-    elif chart_type == "bar":
-        fig.update_traces(
-            marker=dict(
-                line=dict(color="#ffffff", width=1),
-                opacity=0.95,
-            ),
-        )
-        fig.update_layout(
-            xaxis=dict(gridcolor="#e2e8f0", linecolor="#cbd5e1"),
-            yaxis=dict(gridcolor="#e2e8f0", linecolor="#cbd5e1"),
-            showlegend=False,
-            height=380,
-        )
+    fig.tight_layout()
+    buf = BytesIO()
+    plt.savefig(buf, format="png", bbox_inches="tight", dpi=200)
+    plt.close(fig)
+    buf.seek(0)
+    return buf.getvalue()
 
 
-def _fig_to_image(fig, width=900, height=420):
-    fig.update_layout(height=height, width=width)
-    try:
-        return to_image(
-            fig,
-            format="png",
-            width=width,
-            height=height,
-            scale=2,
-            engine="kaleido",
-        )
-    except Exception:
-        try:
-            return fig.to_image(format="png", width=width, height=height)
-        except Exception:
-            return b""
+def _generate_top_products_image(top_p_df: pd.DataFrame) -> bytes:
+    """Generate Top 10 Products Horizontal Bar Chart as high-res PNG bytes."""
+    fig, ax = plt.subplots(figsize=(8, 4.0), dpi=200)
+    fig.patch.set_facecolor("#ffffff")
+    ax.set_facecolor("#fafbfc")
 
+    sorted_df = top_p_df.sort_values(by="sales", ascending=True)
+    products = [p[:28] + "..." if len(p) > 28 else p for p in sorted_df["product_name"]]
+    sales = sorted_df["sales"]
 
-def _build_chart_figures(df):
-    charts = []
+    bars = ax.barh(products, sales, color="#38bdf8", height=0.6, edgecolor="#ffffff", linewidth=1)
+    ax.set_title("Top 10 Best-Selling Products by Revenue", fontsize=12, fontweight="bold", color="#0f172a", pad=12)
+    ax.tick_params(axis="both", which="major", labelsize=8.5, colors="#334155")
+    ax.grid(axis="x", linestyle="--", alpha=0.5, color="#cbd5e1")
+    ax.spines["top"].set_visible(False)
+    ax.spines["right"].set_visible(False)
+    ax.spines["left"].set_color("#cbd5e1")
+    ax.spines["bottom"].set_color("#cbd5e1")
 
-    # 1. Sales Trend Area / Line Chart
-    trend_df = sales_trend(df)
-    if not trend_df.empty:
-        fig1 = px.line(
-            trend_df,
-            x="order_date",
-            y="sales",
-            markers=True,
-            title="Revenue & Sales Trend Over Time",
-        )
-        _apply_chart_export_style(fig1, "line")
-        charts.append(("Revenue Trend Over Time", fig1))
-
-    # 2. Category Distribution PIE / DONUT Chart
-    category_df = category_analysis(df)
-    if not category_df.empty:
-        fig2 = px.pie(
-            category_df,
-            names="category",
-            values="sales",
-            hole=0.45,
-            title="Sales Distribution by Category",
-            color_discrete_sequence=CHART_COLORS,
-        )
-        _apply_chart_export_style(fig2, "pie")
-        charts.append(("Category Sales Distribution (Pie Chart)", fig2))
-
-    # 3. Regional Profitability Bar Chart
-    region_df = region_analysis(df)
-    if not region_df.empty:
-        fig3 = px.bar(
-            region_df,
-            x="region",
-            y="profit",
-            color="region",
-            color_discrete_sequence=CHART_COLORS,
-            title="Regional Profitability",
-            text="profit",
-        )
-        fig3.update_traces(
-            texttemplate="$%{text:,.0f}",
-            textposition="outside",
-        )
-        _apply_chart_export_style(fig3, "bar")
-        charts.append(("Regional Profitability Analysis", fig3))
-
-    # 4. Top 10 Best-Selling Products
-    top_p_df = top_products(df)
-    if not top_p_df.empty:
-        fig4 = px.bar(
-            top_p_df,
-            x="sales",
-            y="product_name",
-            orientation="h",
-            color="sales",
-            color_continuous_scale="Blues",
-            title="Top 10 Best-Selling Products",
-        )
-        fig4.update_layout(yaxis=dict(autorange="reversed"))
-        _apply_chart_export_style(fig4, "bar")
-        charts.append(("Top 10 Best-Selling Products", fig4))
-
-    return charts
+    fig.tight_layout()
+    buf = BytesIO()
+    plt.savefig(buf, format="png", bbox_inches="tight", dpi=200)
+    plt.close(fig)
+    buf.seek(0)
+    return buf.getvalue()
 
 
 def generate_dashboard_pdf(
@@ -248,14 +222,14 @@ def generate_dashboard_pdf(
     story = []
     generated_at = datetime.now().strftime("%B %d, %Y at %I:%M %p")
 
-    # Header
+    # 1. Header
     story.append(Paragraph("Executive Business Analytics Report", title_style))
     story.append(Paragraph(f"Generated on {generated_at} · PulseAnalytics Platform", subtitle_style))
 
     if filter_summary:
         story.append(Paragraph(f"<b>Applied Filters:</b> {filter_summary}", subtitle_style))
 
-    # KPI Summary Section
+    # 2. KPI Summary Section
     total_sales, total_profit, total_orders, total_quantity = calculate_kpis(df)
     profit_margin = (total_profit / total_sales * 100) if total_sales > 0 else 0
     avg_ticket = (total_sales / total_orders) if total_orders > 0 else 0
@@ -292,7 +266,7 @@ def generate_dashboard_pdf(
     story.append(kpi_table)
     story.append(Spacer(1, 0.2 * inch))
 
-    # Business Insights Section on First Page
+    # 3. Business Insights
     insights = generate_insights(df)
     if insights:
         story.append(Paragraph("Key Business Insights & Observations", section_style))
@@ -300,26 +274,64 @@ def generate_dashboard_pdf(
             story.append(Paragraph(f"• {insight}", insight_style))
         story.append(Spacer(1, 0.15 * inch))
 
-    # Analytics Charts with Pie Chart
-    charts = _build_chart_figures(df)
-    if charts:
+    # 4. Visual Analytics & Charts (Trend, Pie Chart, Regional Bar, Top Products)
+    page_width = letter[0] - 1.0 * inch
+
+    chart_images = []
+
+    # Sales Trend
+    trend_df = sales_trend(df)
+    if not trend_df.empty:
+        try:
+            png_data = _generate_sales_trend_image(trend_df)
+            if png_data:
+                chart_images.append(("Revenue Trend Over Time", png_data))
+        except Exception:
+            pass
+
+    # Category Pie / Donut Chart
+    category_df = category_analysis(df)
+    if not category_df.empty:
+        try:
+            png_data = _generate_category_pie_image(category_df)
+            if png_data:
+                chart_images.append(("Category Sales Distribution (Pie Chart)", png_data))
+        except Exception:
+            pass
+
+    # Regional Bar
+    region_df = region_analysis(df)
+    if not region_df.empty:
+        try:
+            png_data = _generate_region_bar_image(region_df)
+            if png_data:
+                chart_images.append(("Regional Profitability Analysis", png_data))
+        except Exception:
+            pass
+
+    # Top Products
+    top_p_df = top_products(df)
+    if not top_p_df.empty:
+        try:
+            png_data = _generate_top_products_image(top_p_df)
+            if png_data:
+                chart_images.append(("Top 10 Best-Selling Products", png_data))
+        except Exception:
+            pass
+
+    if chart_images:
         story.append(PageBreak())
         story.append(Paragraph("Visual Analytics & Distribution", title_style))
         story.append(Spacer(1, 0.1 * inch))
 
-        page_width = letter[0] - 1.0 * inch
-
-        for index, (chart_title, fig) in enumerate(charts):
-            png_bytes = _fig_to_image(fig, width=900, height=420)
-            img_buffer = BytesIO(png_bytes)
-
+        for index, (chart_title, img_bytes) in enumerate(chart_images):
+            img_buf = BytesIO(img_bytes)
             story.append(Paragraph(chart_title, section_style))
-            img = Image(img_buffer, width=page_width, height=page_width * 0.46)
+            img = Image(img_buf, width=page_width, height=page_width * 0.45)
             story.append(img)
-            story.append(Spacer(1, 0.15 * inch))
+            story.append(Spacer(1, 0.12 * inch))
 
-            # Break every 2 charts for neat 2-chart per page layout
-            if index % 2 == 1 and index < len(charts) - 1:
+            if index % 2 == 1 and index < len(chart_images) - 1:
                 story.append(PageBreak())
 
     doc.build(story)

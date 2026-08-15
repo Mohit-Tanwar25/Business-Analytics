@@ -1,8 +1,9 @@
 streamlit
 pandas
 plotly
-kaleido
+matplotlib
 reportlab
+kaleido
 sqlalchemy
 psycopg2-binary
 pg8000
