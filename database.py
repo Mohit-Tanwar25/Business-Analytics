@@ -51,23 +51,64 @@ def _build_database_url() -> tuple[str, str]:
     """
     Determine the database connection URL and type.
     Supports Supabase (Postgres), PostgreSQL, MySQL, and SQLite fallback.
+    Checks all variations of Streamlit secrets and environment variables.
     """
     supabase_url = None
 
-    # 1. Check Streamlit secrets dynamically
+    # 1. Check Streamlit secrets dynamically (all common key names and nested tables)
     try:
         import streamlit as st
         if hasattr(st, "secrets"):
-            supabase_url = st.secrets.get("SUPABASE_DB_URL") or st.secrets.get("DATABASE_URL")
-            if not supabase_url and "postgres" in st.secrets and isinstance(st.secrets["postgres"], dict):
-                p = st.secrets["postgres"]
-                supabase_url = f"postgresql://{p.get('user', 'postgres')}:{p.get('password', '')}@{p.get('host', 'localhost')}:{p.get('port', 5432)}/{p.get('dbname', 'postgres')}"
+            s = st.secrets
+            # Direct keys (uppercase & lowercase)
+            for k in [
+                "SUPABASE_DB_URL", "supabase_db_url", "SUPABASE_URL", "supabase_url",
+                "DATABASE_URL", "database_url", "POSTGRES_URL", "postgres_url",
+                "DB_URL", "db_url"
+            ]:
+                if k in s and isinstance(s[k], str) and s[k].strip():
+                    supabase_url = s[k].strip()
+                    break
+
+            # Nested tables: [postgres], [supabase], [connections.postgresql]
+            if not supabase_url:
+                for section_name in ["postgres", "postgresql", "supabase", "db", "database"]:
+                    if section_name in s and isinstance(s[section_name], dict):
+                        sec = s[section_name]
+                        if "url" in sec and isinstance(sec["url"], str):
+                            supabase_url = sec["url"].strip()
+                            break
+                        elif "SUPABASE_DB_URL" in sec:
+                            supabase_url = sec["SUPABASE_DB_URL"].strip()
+                            break
+                        elif "host" in sec:
+                            user = sec.get("user", "postgres")
+                            pwd = sec.get("password", "")
+                            host = sec.get("host", "localhost")
+                            port = sec.get("port", 5432)
+                            dbname = sec.get("dbname", sec.get("database", "postgres"))
+                            supabase_url = f"postgresql://{user}:{pwd}@{host}:{port}/{dbname}"
+                            break
+
+            # Check st.connection table format: [connections.postgresql] or [connections.supabase]
+            if not supabase_url and "connections" in s and isinstance(s["connections"], dict):
+                conns = s["connections"]
+                for c_key in ["postgresql", "postgres", "supabase", "database"]:
+                    if c_key in conns and isinstance(conns[c_key], dict) and "url" in conns[c_key]:
+                        supabase_url = conns[c_key]["url"].strip()
+                        break
     except Exception:
         pass
 
     # 2. Check environment variables
     if not supabase_url:
-        supabase_url = os.getenv("SUPABASE_DB_URL") or os.getenv("DATABASE_URL") or os.getenv("POSTGRES_URL")
+        for env_key in [
+            "SUPABASE_DB_URL", "DATABASE_URL", "POSTGRES_URL", "DB_URL", "POSTGRESQL_URL"
+        ]:
+            val = os.getenv(env_key)
+            if val and val.strip():
+                supabase_url = val.strip()
+                break
 
     # 3. Check individual Supabase / Postgres env vars
     if not supabase_url and os.getenv("SUPABASE_DB_HOST"):
@@ -132,13 +173,14 @@ def _create_db_engine():
     global DATABASE_URL, DB_TYPE
     DATABASE_URL, DB_TYPE = _build_database_url()
     
-    connect_args = {}
     if DATABASE_URL.startswith("sqlite"):
-        connect_args["check_same_thread"] = False
+        return create_engine(
+            DATABASE_URL,
+            connect_args={"check_same_thread": False},
+        )
 
     return create_engine(
         DATABASE_URL,
-        connect_args=connect_args,
         pool_pre_ping=True,
         pool_size=10,
         max_overflow=20,
@@ -147,6 +189,15 @@ def _create_db_engine():
 
 
 engine = _create_db_engine()
+
+
+def get_engine():
+    """Return active engine, dynamically upgrading to Supabase if newly available."""
+    global engine, DATABASE_URL, DB_TYPE
+    url, db_type = _build_database_url()
+    if url != DATABASE_URL or engine is None:
+        refresh_engine()
+    return engine
 
 
 def refresh_engine():
@@ -160,6 +211,7 @@ def refresh_engine():
 def get_db_info() -> dict:
     """Return status and diagnostics about current database connection."""
     global DATABASE_URL, DB_TYPE, _last_db_error
+    get_engine()
     connected = test_database_connection()
     
     # Mask password in URL for display
