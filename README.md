@@ -13,6 +13,7 @@ An interactive, high-performance Business Intelligence and Sales Analytics dashb
   - Category Distribution Donut / Pie chart with percentage breakdowns.
   - Regional Profitability & Shipping cost analysis.
   - Top 10 Best-Selling Products ranking.
+  - Easy to use and user friendly.
 - **💡 Automated Business Insights**: AI/rule-based operational summaries highlighting key strengths, margin warnings, and revenue drivers.
 - **📄 Executive PDF Reports**: 1-click vector-grade PDF export complete with KPI summaries, charts, and bulletpoint observations.
 - **🌙 Glassmorphism Theme System**: High-contrast Light & Dark modes powered by the *Plus Jakarta Sans* design system.
