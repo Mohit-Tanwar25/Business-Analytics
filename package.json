@@ -1,0 +1,8 @@
+{
+  "name": "business-analysis-system",
+  "private": true,
+  "scripts": {
+    "dev": ".venv\\Scripts\\python.exe -m streamlit run app.py",
+    "start": "npm run dev"
+  }
+}

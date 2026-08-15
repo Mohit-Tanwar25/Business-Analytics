@@ -1,0 +1,11 @@
+streamlit
+pandas
+plotly
+kaleido
+reportlab
+sqlalchemy
+psycopg2-binary
+pg8000
+python-dotenv
+supabase
+pymysql
