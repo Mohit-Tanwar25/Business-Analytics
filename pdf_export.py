@@ -109,14 +109,20 @@ def _apply_chart_export_style(fig, chart_type: str):
 
 def _fig_to_image(fig, width=900, height=420):
     fig.update_layout(height=height, width=width)
-    return to_image(
-        fig,
-        format="png",
-        width=width,
-        height=height,
-        scale=2,
-        engine="kaleido",
-    )
+    try:
+        return to_image(
+            fig,
+            format="png",
+            width=width,
+            height=height,
+            scale=2,
+            engine="kaleido",
+        )
+    except Exception:
+        try:
+            return fig.to_image(format="png", width=width, height=height)
+        except Exception:
+            return b""
 
 
 def _build_chart_figures(df):

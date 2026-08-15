@@ -170,22 +170,32 @@ DATABASE_URL, DB_TYPE = _build_database_url()
 
 
 def _create_db_engine():
-    global DATABASE_URL, DB_TYPE
-    DATABASE_URL, DB_TYPE = _build_database_url()
-    
-    if DATABASE_URL.startswith("sqlite"):
+    global DATABASE_URL, DB_TYPE, _last_db_error
+    try:
+        DATABASE_URL, DB_TYPE = _build_database_url()
+        if DATABASE_URL.startswith("sqlite"):
+            return create_engine(
+                DATABASE_URL,
+                connect_args={"check_same_thread": False},
+            )
+        return create_engine(
+            DATABASE_URL,
+            pool_pre_ping=True,
+            pool_size=10,
+            max_overflow=20,
+            pool_recycle=300,
+        )
+    except Exception as e:
+        _last_db_error = str(e)
+        data_dir = Path("data")
+        data_dir.mkdir(parents=True, exist_ok=True)
+        sqlite_path = (data_dir / "business_analysis.db").resolve()
+        DATABASE_URL = f"sqlite:///{sqlite_path}"
+        DB_TYPE = "SQLite (Local Fallback)"
         return create_engine(
             DATABASE_URL,
             connect_args={"check_same_thread": False},
         )
-
-    return create_engine(
-        DATABASE_URL,
-        pool_pre_ping=True,
-        pool_size=10,
-        max_overflow=20,
-        pool_recycle=300,
-    )
 
 
 engine = _create_db_engine()
@@ -194,9 +204,12 @@ engine = _create_db_engine()
 def get_engine():
     """Return active engine, dynamically upgrading to Supabase if newly available."""
     global engine, DATABASE_URL, DB_TYPE
-    url, db_type = _build_database_url()
-    if url != DATABASE_URL or engine is None:
-        refresh_engine()
+    try:
+        url, db_type = _build_database_url()
+        if url != DATABASE_URL or engine is None:
+            refresh_engine()
+    except Exception:
+        pass
     return engine
 
 
