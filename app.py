@@ -148,6 +148,11 @@ def clear_app_cache():
     list_datasets_cached.clear()
 
 
+@st.cache_data(ttl=120, show_spinner="Generating Executive PDF Report...")
+def get_cached_pdf(df_to_export: pd.DataFrame, summary_text: str) -> bytes:
+    return generate_dashboard_pdf(df_to_export, summary_text)
+
+
 # ---------------- SIDEBAR CONTROLS ----------------
 
 # App Branding
@@ -500,13 +505,17 @@ else:
 
     sidebar_section_label("Executive PDF")
 
-    @st.cache_data(show_spinner="Rendering PDF Charts...")
-    def cached_dashboard_pdf(df_to_export: pd.DataFrame, summary_text: str) -> bytes:
-        return generate_dashboard_pdf(df_to_export.copy(), summary_text)
-
     with st.sidebar.container(border=True):
+        st.markdown(
+            """
+            <div style="font-size: 0.8rem; color: #64748b; margin-bottom: 6px;">
+                Export filtered analytics, KPI metrics, and charts to an executive PDF report.
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
         try:
-            pdf_bytes = cached_dashboard_pdf(filtered_df, filter_summary)
+            pdf_bytes = get_cached_pdf(filtered_df, filter_summary)
             st.download_button(
                 label="📥 Download PDF Report",
                 data=pdf_bytes,
@@ -514,32 +523,48 @@ else:
                 mime="application/pdf",
                 width="stretch",
                 type="primary",
+                key="sidebar_download_pdf",
             )
         except Exception as e:
-            st.caption("PDF generation ready.")
+            st.caption("PDF export ready upon data load.")
 
     # ---------------- TOP HEADER BAR ----------------
 
-    st.markdown(
-        f"""
-        <div class="dashboard-header">
-            <div>
-                <h1 class="dashboard-title-text">
-                    📈 {active_name}
-                </h1>
-                <div style="font-size: 0.875rem; color: #64748b; font-weight: 500; margin-top: 4px;">
-                    Displaying {len(filtered_df):,} of {len(df):,} records
+    head_col1, head_col2 = st.columns([3, 1])
+
+    with head_col1:
+        st.markdown(
+            f"""
+            <div class="dashboard-header" style="margin-bottom: 0;">
+                <div>
+                    <h1 class="dashboard-title-text">
+                        📈 {active_name}
+                    </h1>
+                    <div style="font-size: 0.875rem; color: #64748b; font-weight: 500; margin-top: 4px;">
+                        Displaying {len(filtered_df):,} of {len(df):,} records · Filter: <strong>{filter_summary}</strong>
+                    </div>
                 </div>
             </div>
-            <div class="header-badges">
-                <span class="header-pill">⚡ Status: <strong>Live</strong></span>
-                <span class="header-pill accent">🔍 {filter_summary}</span>
-                <span class="header-pill">☁️ Supabase PostgreSQL</span>
-            </div>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
+            """,
+            unsafe_allow_html=True,
+        )
+
+    with head_col2:
+        try:
+            pdf_bytes = get_cached_pdf(filtered_df, filter_summary)
+            st.download_button(
+                label="📥 Export PDF Report",
+                data=pdf_bytes,
+                file_name=f"Executive_Report_{active_name.replace('.csv', '')}.pdf",
+                mime="application/pdf",
+                width="stretch",
+                type="primary",
+                key="header_download_pdf",
+            )
+        except Exception:
+            pass
+
+    st.markdown("<div style='margin-bottom: 1.25rem;'></div>", unsafe_allow_html=True)
 
     # ---------------- 5 MODERN KPI CARDS ----------------
 
