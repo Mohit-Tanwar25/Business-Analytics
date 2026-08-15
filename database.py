@@ -52,11 +52,18 @@ def _build_database_url() -> tuple[str, str]:
     Determine the database connection URL and type.
     Supports Supabase (Postgres), PostgreSQL, MySQL, and SQLite fallback.
     """
-    # 1. Check Streamlit secrets
-    supabase_url = _ST_SECRETS.get("SUPABASE_DB_URL") or _ST_SECRETS.get("DATABASE_URL")
-    if not supabase_url and "postgres" in _ST_SECRETS and isinstance(_ST_SECRETS["postgres"], dict):
-        p = _ST_SECRETS["postgres"]
-        supabase_url = f"postgresql://{p.get('user', 'postgres')}:{p.get('password', '')}@{p.get('host', 'localhost')}:{p.get('port', 5432)}/{p.get('dbname', 'postgres')}"
+    supabase_url = None
+
+    # 1. Check Streamlit secrets dynamically
+    try:
+        import streamlit as st
+        if hasattr(st, "secrets"):
+            supabase_url = st.secrets.get("SUPABASE_DB_URL") or st.secrets.get("DATABASE_URL")
+            if not supabase_url and "postgres" in st.secrets and isinstance(st.secrets["postgres"], dict):
+                p = st.secrets["postgres"]
+                supabase_url = f"postgresql://{p.get('user', 'postgres')}:{p.get('password', '')}@{p.get('host', 'localhost')}:{p.get('port', 5432)}/{p.get('dbname', 'postgres')}"
+    except Exception:
+        pass
 
     # 2. Check environment variables
     if not supabase_url:
