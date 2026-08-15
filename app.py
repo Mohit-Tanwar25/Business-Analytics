@@ -530,41 +530,26 @@ else:
 
     # ---------------- TOP HEADER BAR ----------------
 
-    head_col1, head_col2 = st.columns([3, 1])
-
-    with head_col1:
-        st.markdown(
-            f"""
-            <div class="dashboard-header" style="margin-bottom: 0;">
-                <div>
-                    <h1 class="dashboard-title-text">
-                        📈 {active_name}
-                    </h1>
-                    <div style="font-size: 0.875rem; color: #64748b; font-weight: 500; margin-top: 4px;">
-                        Displaying {len(filtered_df):,} of {len(df):,} records · Filter: <strong>{filter_summary}</strong>
-                    </div>
+    st.markdown(
+        f"""
+        <div class="dashboard-header">
+            <div>
+                <h1 class="dashboard-title-text">
+                    📈 {active_name}
+                </h1>
+                <div style="font-size: 0.875rem; color: #64748b; font-weight: 500; margin-top: 4px;">
+                    Displaying {len(filtered_df):,} of {len(df):,} records
                 </div>
             </div>
-            """,
-            unsafe_allow_html=True,
-        )
-
-    with head_col2:
-        try:
-            pdf_bytes = get_cached_pdf(filtered_df, filter_summary)
-            st.download_button(
-                label="📥 Export PDF Report",
-                data=pdf_bytes,
-                file_name=f"Executive_Report_{active_name.replace('.csv', '')}.pdf",
-                mime="application/pdf",
-                width="stretch",
-                type="primary",
-                key="header_download_pdf",
-            )
-        except Exception:
-            pass
-
-    st.markdown("<div style='margin-bottom: 1.25rem;'></div>", unsafe_allow_html=True)
+            <div class="header-badges">
+                <span class="header-pill">⚡ Status: <strong>Live</strong></span>
+                <span class="header-pill accent">🔍 {filter_summary}</span>
+                <span class="header-pill">☁️ Supabase PostgreSQL</span>
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
 
     # ---------------- 5 MODERN KPI CARDS ----------------
 
